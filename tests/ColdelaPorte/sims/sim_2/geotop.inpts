@@ -5,7 +5,7 @@ Latitude               = 45.3
 Longitude              = 5.77
 StandardTimeSimulation = 0
 TimeStepEnergyAndWater = 3600
-InitDateDDMMYYYYhhmm   = 01/01/2001 00:00
+InitDateDDMMYYYYhhmm   = 01/01/1997 00:00
 EndDateDDMMYYYYhhmm    = 31/12/2011 23:00
 DtPlotPoint            = 1
 DtPlotDischarge        = 1 
@@ -54,7 +54,7 @@ MeteoStationLongitude 		= 5.77
 MeteoStationElevation		= 1325
 MeteoStationWindVelocitySensorHeight = 5
 MeteoStationTemperatureSensorHeight  = 5
-MeteoFile                   	     = "meteo/meteo"
+MeteoFile                   	     = "meteo/meteo_2v"
 
 HeaderDateDDMMYYYYhhmmMeteo = "Date"							
 HeaderIPrec                 = "Prec"
