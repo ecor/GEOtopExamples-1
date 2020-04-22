@@ -1,0 +1,944 @@
+---
+title: "Col de la Porte"
+output:
+  pdf_document: 
+    fig_caption: yes
+    keep_tex: yes
+  html_document:
+    df_print: paged
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE,dev="png",fig.asp=0.46^(-1),dpi=100,fig.height =150)
+##knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE,dev="png",fig.asp=0.46,dpi=100,fig.height =100)
+```
+
+
+#### Model: GEOtop v3.0
+Compiler: gcc version 4.8.4 (Ubuntu 4.8.4-2ubuntu1~14.04.1) 
+Processor: Intel(R) Core(TM) i7-5500U CPU @ 2.40GHz
+Author: Stefano Endrizzi (stefano.end@gmail.com),Emanuele Cordano (emanuele.cordano@rendena100.eu)
+Date: 25-11-2016
+
+#### Name: ColdelaPorte
+Description: Simulation 1D over the Col de la Porte dataset to test the capability of GEOotp to simulate snow depth, snow water equivalent, soil temperature.
+
+
+
+#### Results published in:
+
+First result with GEOtop v 2.0 are illustrated in the report XXX  (@Endrizzi2014 , supplemantary material). 
+The following simulated variables have  been tested against observations:
+
+- Liquid Precipitation Intensity (Rain); 
+
+- Solid Precipitation Intensity (Snow);
+
+- Snow Height (Snow Dapth);
+
+- Snow Water Equivalent;
+
+- Soil Temperature at 10 cm depth;
+
+- Soil temparature at 20 cm depth;
+
+- Soil Temparature at 50 cm depth;
+
+- Surface Temparature ;
+
+- Albedo .
+
+
+
+<!-- - *Endrizzi S., Gruber S., Dall’Amico M., Rigon R., GEOtop 2.0.: Simulating the combined energy and water balance at and below the land surface accounting for soil freezing, snow cover and terrain effects, Geosci. Model Dev., 2014* -->
+
+<!-- ![ColdelaPorte Example Results of GEOtop 2.0 (not reproducible)](images/Geotop-ColDePorte_Endrizzi2014.pdf) -->
+
+
+
+#### Simulation duration:
+
+```
+InitDateDDMMYYYYhhmm   = 01/01/1997 00:00
+EndDateDDMMYYYYhhmm    = 31/12/2011 23:00
+
+### Output:
+PointOutputFile = "output-tabs/surface"
+```
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+library(dplyr)
+library(geotopbricks)
+library(magrittr)
+library(reshape2)
+wpath <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/ColdelaPorte/sims' 
+wpaths <- wpath %>% list.files(pattern="sim",full.name=TRUE)
+names(wpaths) <- wpath %>% list.files(pattern="sim",full.name=FALSE)
+
+outvar <- c("Tair.C.","Tsurface.C.","snow_depth.mm.","snow_water_equivalent.mm.","SWin.W.m2.","SWbeam.W.m2","SWdiff.W.m2.","SWnet.W.m2.","SWup.W.m2.","Psnow_under_canopy.mm.","Prain_under_canopy.mm.","Albedo") ###        "Prain_rain_on_snow.mm." 
+date_field <- "Date12.DDMMYYYYhhmm."
+tz <- "GMT" ###Etc/GMT-1"
+add_suffix_dir="_v3"
+####
+
+point <- NULL
+##tempz <- list()
+
+
+for (it in names(wpaths)) {
+   
+   wpath <- wpaths[it]
+   o <- get.geotop.inpts.keyword.value("PointOutputFile",data.frame=TRUE,wpath=wpath,add_suffix_dir=add_suffix_dir,date_field=date_field,tz=tz)
+  ### ALBEDO COMPUTATION
+   o$Albedo <-  o$SWup.W.m2 / o$SWin.W.m2.
+   ###
+   time <- index(o)
+   o <- as.data.frame(o)
+   o$time <- as.POSIXct(time)
+   o <- o %>% melt(id="time") 
+   o <- o %>% filter(variable %in% outvar)
+   o$sim <- it
+   point <- rbind(point,o)
+   o <- get.geotop.inpts.keyword.value("SoilAveragedTempProfileFile",data.frame=TRUE,wpath=wpath,zlayer.formatter="z%04d",add_suffix_dir=add_suffix_dir,date_field=date_field,tz=tz)
+  
+   ###
+   
+   time <- index(o)
+   o <- as.data.frame(o)
+   o$time <- as.POSIXct(time)
+   o <- o %>% melt(id="time")
+   o$variable <- paste0("temp",o$variable)
+   o$sim <- it
+  point <- rbind(point,o)
+   
+}
+
+str(point)
+
+```
+
+
+
+
+### Observations:
+
+
+Snow heigth mm, Snow Water Equivalent mm(NOT FOUND), T surface C, T soil 10cm C,T soil 20cm C,T soil 50cm C
+see @Morin2012.
+<!-- - *Morin, S., Lejeune, Y., Lesaffre, B., Panel, J.-M., Poncet, D., David, -->
+<!-- P., and Sudul, M.: An 18-yr long (1993–2011) snow and meteorological dataset from a mid-altitude mountain site (Col de Porte, -->
+<!-- France, 1325 m alt.) for driving and evaluating snowpack models, Earth Syst. Sci. Data, 4, 13–21, doi:10.5194/essd-4-13-2012, -->
+<!-- 2012.* -->
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+library(stringr)
+library(purrr)
+library(dplyr)
+
+cdp_obs_rda <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/ColdelaPorte/obss/rda/cdp_obs.rda'
+load(cdp_obs_rda)
+
+var_temp <-  c("Tsoil_10cm","Tsoil_20cm","Tsoil_50cm","Tsurf") 
+var_snow <- c("Snowdepth")
+var_swe <- c("SWE_pit")
+var_prec <- c("Rainf","Snowf")
+var_Albedo <- "Albedo"
+var <- c(var_temp,var_snow,var_swe,var_prec,var_Albedo)
+obs <- cdp_obs %>% filter(variable %in% var)  
+obs$unit <- as.character(obs$unit)
+### 
+isd <- which(obs$variable %in% var_snow)
+obs$value[isd] <- (obs$value[isd])*10
+obs$unit[isd] <- "mm"
+ ###head()
+
+itemp <-  which(obs$variable %in% var_temp)
+obs$value[itemp] <- (obs$value[itemp])-273.15 ####T(C) = T(K) - 273.15 ...
+obs$unit[itemp] <- "C"
+
+iswe <- which(obs$variable %in% var_swe)
+
+obs$value[iswe] <- (obs$value[iswe])/1000*1000 ## From kg m-2 to mm
+obs$unit[iswe] <- "mm"
+
+iprec <- which(obs$variable %in% var_prec)
+obs$value[iprec] <- obs$value[iprec]*3600/1000*1000  ## kg m-2 s-1 to mm/hr 
+##"Psnow_under_canopy.mm.","Prain_under_canopy.mm."
+
+
+
+levels(obs$variable)[levels(obs$variable)=="Snowdepth"] <- "snow_depth.mm."
+levels(obs$variable)[levels(obs$variable)=="SWE_pit"] <- "snow_water_equivalent.mm."
+levels(obs$variable)[levels(obs$variable)=="Tsurf"] <- "Tsurface.C."
+levels(obs$variable)[levels(obs$variable)=="Tsoil_10cm"] <- "tempz0010"
+levels(obs$variable)[levels(obs$variable)=="Tsoil_20cm"] <- "tempz0020"
+levels(obs$variable)[levels(obs$variable)=="Tsoil_50cm"] <- "tempz0050"
+levels(obs$variable)[levels(obs$variable)=="Rainf"] <- "Prain_under_canopy.mm."
+levels(obs$variable)[levels(obs$variable)=="Snowf"] <- "Psnow_under_canopy.mm."
+names(obs)[names(obs)=="Time"] <- "time"
+obs$sim <- "obs"
+
+nobs <-  obs$variable %>% unique() %>% as.character()
+point <- rbind(point,obs[,names(point)])  %>% filter(!is.na(value))
+
+```
+
+### Winter 2001/2002
+
+Here is a comparison plot:
+
+```{r Winter_2001_2002,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE,fig.height=5000}
+
+###{r Winter_2001_2002,echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2001
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+### Winter 2002/2003
+
+Here is a comparison plot:
+
+```{r Winter_2002_2003,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2002
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+### Winter 2003/2004
+
+Here is a comparison plot:
+
+```{r Winter_2003_2004,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2003
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+
+### Winter 2004/2005
+
+Here is a comparison plot:
+
+```{r Winter_2004_2005,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2004
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+### Winter 2005/2006
+
+Here is a comparison plot:
+
+```{r Winter_2005_2006,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2005
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+### Winter 2006/2007
+
+Here is a comparison plot:
+
+```{r Winter_2006_2007,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2006
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+### Winter 2007/2008
+
+Here is a comparison plot:
+
+```{r Winter_2007_2009,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2007
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Winter 2008/2009
+
+Here is a comparison plot:
+
+```{r Winter_2008_2009,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2008
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Winter 2009/2010
+
+Here is a comparison plot:
+
+```{r Winter_2009_2010,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2009
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Winter 2010/2011
+
+Here is a comparison plot:
+
+```{r Winter_2010_2011,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+###{r echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+names(colors) <- point$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+year <- 2010
+start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+end <- start+years(1)
+
+pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=pointc)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+
+obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+### References
+
+```{r generateBibliography,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+require("knitcitations")
+cleanbib()
+options("citation_format" = "pandoc")
+read.bibtex(file = "bibliography.bib")
+
