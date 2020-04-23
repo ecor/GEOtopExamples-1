@@ -1,11 +1,11 @@
 ---
 title: "Col de la Porte"
 output:
+  html_document:
+    df_print: paged
   pdf_document: 
     fig_caption: yes
     keep_tex: yes
-  html_document:
-    df_print: paged
 bibliography: bibliography.bib
 ---
 
