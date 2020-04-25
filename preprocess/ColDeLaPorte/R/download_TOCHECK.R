@@ -1,5 +1,7 @@
 ##
 ## Emanuele Cordano 
+##
+## THIS FILES DOWNLODS DATA FROM COL DE  LA PORTE ...
 rm(list=ls())
 
 #####library(geotopbricks)
@@ -73,6 +75,3 @@ for (i in 1:nrow(files)){
   download.file(files$URL[i],files$zip[i])
 }
   
-  
-###
-stop("MI FERMO QUI")

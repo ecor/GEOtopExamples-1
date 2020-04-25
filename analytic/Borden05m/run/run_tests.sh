@@ -1,7 +1,7 @@
 #! /bin/bash
 
 export GEOTOP_PATH=/home/ecor/local/docker/geotop
-export SIMS_PATH=/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/ColdelaPorte/sims 
+export SIMS_PATH=/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/Borden05m/sims 
 ###export SIMS_PATH=/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/sims
 ##export SIMS_PATH=/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/Borden05m
 echo ls ${SIMS_PATH}

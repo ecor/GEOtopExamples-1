@@ -12,7 +12,7 @@ library(reshape2)
 ###library(plyr)
 
 ### ORIGINAL METEO DATA
-
+wdir <- ''
 meteo_insitu_file <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/delivery/morin2012_allzips/CDP_ascii/CDP_met_insitu.dat'
 meteo_safran_file <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/delivery/morin2012_allzips/CDP_ascii/CDP_met_safran.dat'
 
@@ -46,7 +46,7 @@ for (i in (1:length(files))) {
   it4$unit <- it3[as.character(it4$variable)] %>% factor()
   it4$source <- itn %>% factor()
   cdp_obs <- rbind(cdp_obs,it4)
-  print("DA METTERE A POSTO")
+
   
   
 }

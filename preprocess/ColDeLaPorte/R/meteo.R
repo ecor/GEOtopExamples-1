@@ -1,5 +1,9 @@
 ##
 ## Emanuele Cordano 
+##
+## 2020 04 25 
+## It retrieves wether data from RDA archive dataset 
+##
 rm(list=ls())
 
 #####library(geotopbricks)
@@ -11,47 +15,43 @@ library(zoo)
 ###library(plyr)
 
 ###
-wpath <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/sims' 
+##wpath <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/sims' 
+wpath <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/ColdelaPorte/sims/'
 wpaths <- wpath %>% list.files(pattern="sim",full.name=TRUE)
 names(wpaths) <- wpath %>% list.files(pattern="sim",full.name=FALSE)
 meteo_orig <- geotopbricks::get.geotop.inpts.keyword.value("MeteoFile",wpath=wpaths[1],data.frame=TRUE)
 ###
 
-### ORIGINAL METEO DATA
+### OBSERVATION RDA FILE
 
-meteo_insitu_file <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/delivery/morin2012_allzips/CDP_ascii/CDP_met_insitu.dat'
-meteo_safran_file <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/delivery/morin2012_allzips/CDP_ascii/CDP_met_safran.dat'
+##cdp_obs_rda <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/rda/cdp_obs.rda'
+cdp_obs_rda <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/ColdelaPorte/obss/rda/cdp_obs.rda'
 
-### SAFRAN
-sep <- ","
-meteo_safran_s <- meteo_insitu_file %>% (function(x,sep){readLines(meteo_insitu_file)[1] %>% str_split(sep)})(sep=sep) %>% extract2(1)
-attr(meteo_safran_s,"unit") <-   meteo_safran_file %>% (function(x,sep){readLines(meteo_insitu_file)[2] %>% str_split(sep)})(sep=sep)
-meteo_safran <- meteo_safran_file %>% read.table(header=FALSE,skip=2,sep=sep)
-names(meteo_safran) <- meteo_safran_s[1:ncol(meteo_safran)]
+load(cdp_obs_rda)
+#unique(cdp_obs$source)
+#[1] CDP_met_insitu.dat CDP_met_safran.dat CDP_hor_eval.dat   CDP_daily_eval.dat
+#Levels: CDP_met_insitu.dat CDP_met_safran.dat CDP_hor_eval.dat CDP_daily_eval.dat
+cdp_obs <- cdp_obs %>% filter(source=="CDP_met_insitu.dat") %>% select(-unit,-source)  %>% dcast(Time ~ variable) ##
+meteo_s <- cdp_obs %>% select(-Time) %>% as.zoo()
+###stop("qui")
+##%>% as.zoo()
+index(meteo_s) <- cdp_obs$Time
+###meteo_s <- meteo_s[,names(meteo_s)!="Time"]
 
-### INSITU
-sep <- ","
-meteo_insitu_s <- meteo_insitu_file %>% (function(x,sep){readLines(meteo_insitu_file)[1] %>% str_split(sep)})(sep=sep) %>% extract2(1)
-attr(meteo_insitu_s,"unit") <-   meteo_insitu_file %>% (function(x,sep){readLines(meteo_insitu_file)[2] %>% str_split(sep)})(sep=sep)
-meteo_insitu <- meteo_insitu_file %>% read.table(header=FALSE,skip=2,sep=sep)
-names(meteo_insitu) <- meteo_insitu_s
 
 ### METEO FILE (template)
 
 ###
-tz <- "Etc/GMT-1"
-wpath <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/sims' 
+tz <- "GMT"
+##wpath <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/sims' 
+wpath <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/ColdelaPorte/sims/'
 wpaths <- wpath %>% list.files(pattern="sim",full.name=TRUE)
 names(wpaths) <- wpath %>% list.files(pattern="sim",full.name=FALSE)
 meteo_orig <- geotopbricks::get.geotop.inpts.keyword.value("MeteoFileOld",wpath=wpaths[3],data.frame=TRUE,tz=tz)
 ###
-meteo_ss <- meteo_insitu
-####meteo_ss <- meteo_safran
-ttime <- meteo_ss$Time %>% as.character() %>% as.POSIXlt(tz=tz)
-meteo_s <- meteo_ss[,(names(meteo_ss)!="Time")] %>% as.zoo()
-index(meteo_s) <- ttime
-#index(meteo_s) <- meteo_s$Time %>% as.character() %>% as.POSIXlt(tz=tz)
-##
+
+
+
 ## FROM kg m^-2 s^-1 water density: 1000 kg m^-3
 water_density <- 1000
 meteo_s$Prec <- (meteo_s$Rainf+meteo_s$Snowf)/water_density*1000*3600
@@ -121,102 +121,4 @@ for (i in (1:length(wpaths))) {
   print(file_prefix)
   geotopbricks::create.geotop.meteo.files(x=meteo_new,file_prefix=file_prefix)
 }
-
-# 
-# summary(meteo_orig[index(meteo_orig),]-meteo_new[index(meteo_orig),])
-# summary(meteo_orig[index(meteo_orig),"Prec"]-meteo_new[index(meteo_orig),"Prec"])
-# plot(meteo_orig[index(meteo_orig),"Prec"]-meteo_new[index(meteo_orig),"Prec"])
-# 
-# plot(meteo_orig[index(meteo_orig),"Tair"]-meteo_new[index(meteo_orig),"Tair"])
-# plot(meteo_new[index(meteo_orig),"SW"][],meteo_orig[index(meteo_orig),"SW"][])
-# 
-# 
-# 
-# 
-# 
-# 
-# stop("HERE")
-# # 
-# # csv <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/delivery/morin2012/datasets/' %>% list.files(pattern=".tab",full.name=TRUE) 
-# # ##
-# # tz <- "Etc/GMT-1"
-# # 
-# # 
-# # start_comment_delim <- fixed("/*")
-# # end_comment_delim <- fixed("*/")
-# # start_comment_line <- csv %>% map(readLines) %>%  map(str_detect,pattern=start_comment_delim) %>% map(which) %>% map(extract,1) %>% unlist()
-# # end_comment_line <- csv %>% map(readLines) %>%  map(str_detect,pattern=end_comment_delim) %>% map(which) %>% map(extract,1) %>% unlist()
-# # obs <- list()
-# # sep <- "\t"
-# # format_datetime <- "%Y-%m-%dT%H:%M"
-# # format_date <- "%Y-%m-%d"
-# # for (i in 1:length(csv)) {
-# #   
-# #   obs[[i]] <- read.table(csv[i],sep=sep,header=TRUE,skip=end_comment_line[i])
-# #   attr(obs[[i]],"foreword") <- csv[i] %>% readLines() %>% extract(start_comment_line[i]:end_comment_line[i])
-# #   attr(obs[[i]],"filepath") <- csv[i]
-# #   if ("Date.Time" %in% names(obs[[i]])) {
-# #     ##
-# #     ##
-# #     
-# #     temp <- obs[[i]]$Date.Time %>% as.POSIXct(format=format_datetime,tz=tz)
-# #     if (any(is.na(temp))) temp <- obs[[i]]$Date.Time %>% as.POSIXct(format=format_date,tz=tz)
-# #     if (any(is.na(temp))) {
-# #       message <- sprintf("DataTime issue on %s",csv[i])
-# #       stop(message)
-# #     }
-# #     obs[[i]]$Date.Time <- temp
-# #     
-# #     ##
-# #     ##
-# #   }
-# # }
-# # ##
-# # 
-# # 
-# # ##
-# # 
-# # ## GET METEO DATA
-# # meteo <- obs[[5]]
-# # 
-# # ###
-# # wpath <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/sims' 
-# # wpaths <- wpath %>% list.files(pattern="sim",full.name=TRUE)
-# # names(wpaths) <- wpath %>% list.files(pattern="sim",full.name=FALSE)
-# # meteo_orig <- geotopbricks::get.geotop.inpts.keyword.value("MeteoFile",wpath=wpaths[3],data.frame=TRUE)
-# # ###
-# # 
-# # str(obs[[2]])
-# # 
-# # ###
-# # files <- obs[[2]]
-# # files$URL <- files$URL.file %>% str_replace("hdl:","https://doi.pangaea.de/")
-# # 
-# # ###https://d##oi.pangaea.de/10013/epic.38613.d001
-# # ## 
-# # zips <- '/home/ecor/activity/2020/geotop_article/git/GEOtopExamples/tests/ColdelaPorte/obss/delivery/morin2012_allzips/%s.zip'
-# # files$zip <- zips %>% sprintf(files$File.name)
-# # 
-# # for (i in 1:nrow(files)){
-# #   
-# #   download.file(files$URL[i],files$zip)
-# # }
-# #   
-# #   
-# # ###
-# # stop("MI FERMO QUI")
-# # ##
-# # ##
-# # ## SOIL TEMPERATURE
-# # str(obs[[6]])
-# # str(csv[[6]])
-# # ## METEO DATA
-# # str(obs[[5]])
-# # str(meteo[[5]])
-# # 
-# # ## OBS 1
-# # 
-# # str(obs[[1]])
-# # str(csv[[1]])
-# # 
-# # stop("HRERE")   
+## END 
