@@ -1,0 +1,185 @@
+---
+title: "Borden"
+output:
+  pdf_document: 
+    fig_caption: yes
+    keep_tex: yes
+  html_document:
+    df_print: paged
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE,dev="png",fig.asp=0.46^(-1),dpi=100,fig.height =150)
+##knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE,dev="png",fig.asp=0.46,dpi=100,fig.height =100)
+```
+
+
+#### Model: GEOtop v3.0
+Compiler: c++ (gcc 5.4.0 "c++ (Ubuntu 5.4.0-6ubuntu1~16.04.9) 5.4.0 20160609")
+Processor: Intel(R) Core(TM) i7-6700HQ CPU @ 2.60GHz
+Author:  Elisa Bortoli (elisa.bortoli3@gmail.com)
+Date: 28-06-2018
+
+#### Name:  Borden05m
+Description: Borden Experiment (initial waterdepth 20cm below ditch outlet -
+rainfall intensity 20 mm/hr duration 50 min). Inspired by the Borden test Case
+a well known small catchment laboratory experiment (@Vanderkwaak2000,@Abdul1989).
+
+
+
+
+
+#### Results published in:
+
+The GEOtop 2.0 version (branch se27xx) has been tested to simulate runoff and water content in the soil. 
+Results published in @Kollet2017. 
+
+The following simulated variables have  been simulated and tested against observations:
+
+```
+Output:
+- tabs (6): every 1 min (basin,discharge,point,soiltemp,soilwater)
+- maps (66): every 6 min (Prec,psiliq,thetaliq,waterchan,watersurf,watertable)
+```
+
+
+#### Simulation duration:
+
+```
+InitDateDDMMYYYYhhmm   = 01/06/2000 12:00
+EndDateDDMMYYYYhhmm    = 01/06/2000 12:10
+
+### Output:
+PointOutputFile = "output-tabs/surface"
+```
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+library(dplyr)
+library(geotopbricks)
+library(magrittr)
+library(reshape2)
+wpath <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/Borden05m/sims'
+wpaths <- wpath %>% list.files(pattern="sim",full.name=TRUE)
+names(wpaths) <- wpath %>% list.files(pattern="sim",full.name=FALSE)
+tz <- "GMT" ###Etc/GMT-1"
+add_suffix_dir="_v3"
+date_field <- "DATE.day.month.year.hour.min."
+discharge <-  "DischargeFile" %>% get.geotop.inpts.keyword.value(wpath=wpaths[1],data.frame=TRUE,date_field=date_field,tz=tz,formatter="",add_suffix_dir=add_suffix_dir)
+
+start <- "InitDateDDMMYYYYhhmm" %>% get.geotop.inpts.keyword.value(wpath=wpaths[1],date=TRUE,tz=tz)
+time <- (index(discharge)-start) %>% as.numeric(unit="secs")
+discharge <- as.data.frame(discharge)
+discharge$time <- time
+vars <- c("Qtot.m3.s.","Vsup.Dt.m3.s.","Vsub.Dt.m3.s.","Vchannel.m3.") 
+discharge <- discharge %>% melt(id="time") %>% filter(variable %in% vars)
+discharge$variable <- as.character(discharge$variable) %>% factor()
+# [1] "t.days."           "JDfrom0"           "JD"                "Qtot.m3.s."        "Vsup.Dt.m3.s."     "Vsub.Dt.m3.s."    
+# [7] "Vchannel.m3."      "Qoutlandsup.m3.s." "Qoutlandsub.m3.s." "Qoutbottom.m3.s."  "time"             
+discharge$sim <- names(wpaths)[1]
+
+```
+
+
+
+
+### Observations:
+
+
+Discharge time series.
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+library(stringr)
+library(purrr)
+library(dplyr)
+
+borden_obs_csv <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/Borden05m/obss/discharge.csv'
+obs <- borden_obs_csv %>% read.table(sep=",",header=TRUE) %>% select(1:2)
+names(obs) <- c("time","Qtot.m3.s.")
+var_obs <- names(obs)[-1]
+obs <- obs %>% melt(id="time")
+obs$sim <- "obs"
+
+##nobs <-  obs$variable %>% unique() %>% as.character()
+discharge <- rbind(discharge,obs[,names(discharge)])  %>% filter(!is.na(value))
+
+```
+
+### Comparison
+
+Here is a comparison plot:
+
+```{r Winter_2001_2002,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE,fig.height=5000}
+
+###{r Winter_2001_2002,echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(purrr)
+##library(RColorBrewer)
+
+####  https://colorbrewer2.org/#type=qualitative&scheme=Set3&n=8
+color_obs <- "black"
+###colors <- c("#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",color_obs)
+colors <- c("blue",color_obs)
+names(colors) <- discharge$sim %>% unique()
+
+if (colors["obs"]!=color_obs) {
+   
+   colors[names(colors)!="obs"] <- colors[colors!=color_obs]
+   colors["obs"] <- color_obs
+   
+}
+alphas <- array(0.5,length(colors))
+names(alphas) <- names(colors)
+alphas["obs"] <- 1
+####
+
+# year <- 2001
+# start <- "%04d-08-01" %>% sprintf(year) %>% as.Date()
+# end <- start+years(1)
+# 
+# pointc <- point %>% filter(variable %in% nobs) %>% filter(time >= start & time<=end)
+
+g <- ggplot()+geom_line(aes(x=time,y=value,group=sim,color=sim,alpha=sim),data=discharge)+theme_bw()+facet_grid(variable ~ .,scales="free_y")
+g <- g+scale_color_manual(values=colors)+scale_alpha_manual(values=alphas)
+g
+```
+
+Goodness of fit: 
+
+```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE} 
+
+library(hydroGOF)
+
+discharged <- discharge %>% filter(variable %in% var_obs)
+obsc <- discharge %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- discharge %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+
+oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
+
+sims <- sapply(oo,FUN=function(x){x[1,"sim"]})
+oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))}) 
+
+oo <- oo %>% do.call(what=rbind)
+rownames(oo) <- NULL
+knitr::kable(oo)
+
+```
+
+
+
+
+
+
+
+### References
+
+```{r generateBibliography,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+require("knitcitations")
+cleanbib()
+options("citation_format" = "pandoc")
+read.bibtex(file = "bibliography.bib")
+
