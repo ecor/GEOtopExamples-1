@@ -1,11 +1,11 @@
 ---
 title: "Borden"
 output:
+  html_document:
+    df_print: paged
   pdf_document: 
     fig_caption: yes
     keep_tex: yes
-  html_document:
-    df_print: paged
 bibliography: bibliography.bib
 ---
 
@@ -59,6 +59,10 @@ library(dplyr)
 library(geotopbricks)
 library(magrittr)
 library(reshape2)
+library(stringr)
+library(purrr)
+##library(dplyr)
+
 wpath <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/Borden05m/sims'
 wpaths <- wpath %>% list.files(pattern="sim",full.name=TRUE)
 names(wpaths) <- wpath %>% list.files(pattern="sim",full.name=FALSE)
@@ -71,7 +75,9 @@ start <- "InitDateDDMMYYYYhhmm" %>% get.geotop.inpts.keyword.value(wpath=wpaths[
 time <- (index(discharge)-start) %>% as.numeric(unit="secs")
 discharge <- as.data.frame(discharge)
 discharge$time <- time
-vars <- c("Qtot.m3.s.","Vsup.Dt.m3.s.","Vsub.Dt.m3.s.","Vchannel.m3.") 
+discharge$Qout.m3.s. <- discharge$Qoutlandsup.m3.s.+discharge$Qoutlandsub.m3.s.
+
+vars <- c("Qout.m3.s.") ###,"Vsup.Dt.m3.s.","Vsub.Dt.m3.s.","Vchannel.m3.") Vsup e Vsup non funzionano?
 discharge <- discharge %>% melt(id="time") %>% filter(variable %in% vars)
 discharge$variable <- as.character(discharge$variable) %>% factor()
 # [1] "t.days."           "JDfrom0"           "JD"                "Qtot.m3.s."        "Vsup.Dt.m3.s."     "Vsub.Dt.m3.s."    
@@ -90,13 +96,11 @@ Discharge time series.
 
 ```{r eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
 
-library(stringr)
-library(purrr)
-library(dplyr)
+
 
 borden_obs_csv <- '/home/ecor/activity/2020/geotop_examples/GEOtopExamples-1/tests/Borden05m/obss/discharge.csv'
-obs <- borden_obs_csv %>% read.table(sep=",",header=TRUE) %>% select(1:2)
-names(obs) <- c("time","Qtot.m3.s.")
+obs <- borden_obs_csv %>% read.table(sep=",",header=TRUE) %>% dplyr::select(1,2)
+names(obs) <- c("time","Qout.m3.s.")
 var_obs <- names(obs)[-1]
 obs <- obs %>% melt(id="time")
 obs$sim <- "obs"
@@ -110,7 +114,7 @@ discharge <- rbind(discharge,obs[,names(discharge)])  %>% filter(!is.na(value))
 
 Here is a comparison plot:
 
-```{r Winter_2001_2002,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE,fig.height=5000}
+```{r Comparison,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE,fig.height=5000}
 
 ###{r Winter_2001_2002,echo=FALSE,out.width='90%', fig.align='center', fig.cap=NULL, fig.height=5,results='asis',warning=FALSE}
 
@@ -154,9 +158,46 @@ Goodness of fit:
 
 library(hydroGOF)
 
-discharged <- discharge %>% filter(variable %in% var_obs)
-obsc <- discharge %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
-pointd <- discharge %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
+### https://stackoverflow.com/questions/41861739/r-interpolate-a-data-table-when-xs-are-the-names-of-columns-and-ys-the-rows
+timex <- discharge %>% filter(variable %in% var_obs)  %>% filter(sim=="obs")
+timex <- tapply(X=timex$time,INDEX=timex$variable,FUN=function(x){x})
+
+discharge_list <- list() 
+
+for (itsim in unique(discharge$sim)) {
+  
+  timex <- discharge %>% filter(sim=="obs")
+  x <- discharge %>% filter(sim==itsim)
+  discharge_list[[itsim]] <- list()
+  for (itvar in unique(x$variable)) {
+    xv <- x %>% filter(variable==itvar)
+    timexv <- timex %>% filter(variable==itvar) %>% dplyr::select(time) %>% extract2(1)
+    out <- approx(x=xv$time,y=xv$value,xout=timexv) ## ADDITIONAL ARGUMENT TO ADD 
+    out <- out %>% as.data.frame()
+    names(out) <- c("time","value")
+    out$variable <- itvar
+    out$sim <- itsim
+    out <- out[,names(xv)]
+    discharge_list[[itsim]][[itvar]] <- out
+  }  
+    
+    
+    
+}
+
+id <- c("time","variable","value","sim")
+dischargedd <- discharge_list %>% melt(id=id) %>% dplyr::select(-L1,-L2)
+
+
+# discharge_dd <- discharge %>% filter(variable %in% var_obs) %>% filter(!is.na(value)) %>% group_by(sim,variable) %>% transmute(time=timex[[variable[1]]],value=approx(x=time,y=value,xout=timex[[variable[1]]]))
+# 
+# stop("HERE")
+
+##obsc <- dischargedd %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value) %>% left_join(obsc) %>% ##as.data.frame()
+
+
+obsc <- dischargedd %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value)
+pointd <- dischargedd %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame()
 
 oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})  
 
@@ -167,7 +208,34 @@ oo <- oo %>% do.call(what=rbind)
 rownames(oo) <- NULL
 knitr::kable(oo)
 
+
 ```
+
+
+
+
+
+
+<!-- Goodness of fit:  -->
+
+<!-- ```{r eval=TRUE,echo=FALSE,output=FALSE,results='asis',message=FALSE,warning=FALSE}  -->
+
+<!-- library(hydroGOF) -->
+
+
+<!-- obsc <- pointc %>% filter(sim=="obs") %>% transmute(time=time,variable=variable,obs=value) -->
+<!-- pointd <- pointc %>% group_by(sim) %>% left_join(obsc) %>% as.data.frame() -->
+
+<!-- oo <- pointd %>% group_by(sim,variable) %>% group_split() %>% map(as.data.frame) %>% map(function(x) {o <- as.data.frame(gof(sim=x[,"value"],obs=x[,"obs"]));names(o) <- x[1,"variable"];o$sim <- x[1,"sim"];o$gof <- rownames(o);return(o)})   -->
+
+<!-- sims <- sapply(oo,FUN=function(x){x[1,"sim"]}) -->
+<!-- oo <-   oo %>% tapply(INDEX=sims,FUN=do.call,what="cbind") %>% map(function(x){x[,!(duplicated(names(x)))]}) %>% map(function(x){x[c(c("sim","gof"),names(x)[!(names(x) %in% c("sim","gof"))])]}) %>% map(function(x) {x %>% filter(gof %in% c("MAE","RMSE","KGE"))})  -->
+
+<!-- oo <- oo %>% do.call(what=rbind) -->
+<!-- rownames(oo) <- NULL -->
+<!-- knitr::kable(oo) -->
+
+<!-- ``` -->
 
 
 
